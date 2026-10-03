@@ -791,6 +791,49 @@ the container as healthy (Compose: `depends_on: condition: service_healthy`)
 with no curl in the image. Bind-mounting a folder at `/config` in place of a
 named volume works too; it has to be writable by uid 65532.
 
+#### NAS with agents on other machines
+
+Magpie can run on a headless NAS as a shared gateway even when the agents that
+use it (Claude Code, Codex, OpenCode, and so on) run on other computers. The
+container does not discover agent installations on the NAS host or on remote
+machines: configure those agents to use the NAS address and an enabled gateway
+key, for example `http://<nas-address>:3425/v1` for an OpenAI-compatible
+client. Keep `3425` behind a firewall or VPN and do not expose it publicly
+without gateway-key authentication.
+
+For a bind-mounted configuration directory, the directory must be writable by
+the non-root container user (uid 65532):
+
+```sh
+sudo chown -R 65532:65532 /volume1/docker/magpie/config
+sudo chmod -R u+rwX /volume1/docker/magpie/config
+```
+
+An example Docker Compose project is:
+
+```yaml
+services:
+  magpie:
+    image: ghcr.io/yetone/magpie:latest
+    restart: unless-stopped
+    ports:
+      - "3425:3425"
+      - "3430:3430"
+    environment:
+      MAGPIE_ADDR: 0.0.0.0:3425
+      MAGPIE_PUBLIC_URL: http://<nas-address>:3425
+      MAGPIE_WEB_KEY: <random-key>
+    volumes:
+      - ./config:/config
+    command: [web, --addr, 0.0.0.0:3430, --no-open]
+```
+
+Open `http://<nas-address>:3430/?k=<random-key>` to configure providers and
+turn on *Share on local network*, then create a gateway key for each remote
+agent host. For Internet access, prefer a VPN such as Tailscale or WireGuard;
+if a reverse proxy is used, it must authenticate clients itself when it
+forwards to Magpie over loopback.
+
 ### Developing
 
 ```sh
