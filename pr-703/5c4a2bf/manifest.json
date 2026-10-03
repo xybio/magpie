@@ -1,0 +1,34 @@
+{
+  "summary": "改动集中在「路由」页的请求说明文案：带 sealedTask 的请求会说明子代理任务已加密、只有 ChatGPT 账号能读，并说明优先使用回答过主代理的账号；子代理请求改说由 magpie 在路由组内选模型；额度相关句不再一律称「每周」而改说「剩余额度 / 距重置」；命中规则却没有可用账号、以及没有命中规则的句子也改写得更短。后端只是把这些路由决定记进 trace，未改变路由策略。",
+  "scenes": [
+    {
+      "title": "路由页显示请求说明的位置",
+      "shots": [
+        {
+          "file": "01-routing-overview.png",
+          "caption": "进入「路由」：沙盒只有 DeepSeek，最近的请求都来自 curl",
+          "width": 2560
+        },
+        {
+          "file": "02-routing-request-list.png",
+          "caption": "最近几个请求的列表",
+          "width": 2560
+        },
+        {
+          "file": "03-routing-request-steps.png",
+          "caption": "这条请求的路由说明——加密子任务、主代理账号优先、子代理选模型这类条目都出现在这个列表里",
+          "width": 2524
+        }
+      ]
+    }
+  ],
+  "video": "preview.mp4",
+  "poster": "poster.png",
+  "errors": [],
+  "leak": false,
+  "skipped": null,
+  "mismatch": "描述说「A rule without a usable candidate now says “no eligible candidate”」，但 diff 里并没有这串文案：命中的规则但无可用账号时，中英文都写成「没有能接这次请求的账号或 Key」/「has no account or key that can take this request」，测试也断言不出现 “eligible candidate”。",
+  "unseen": "这些说明只在真实请求带上相应标记时才出现：沙盒只有 DeepSeek 一个供应商、没有 ChatGPT/Claude 账号，也没有 Codex 子代理请求，所以路由记录里不会出现加密子任务（sealedTask）、主代理账号优先（leadAccount）或「子代理由 magpie 选模型」这些条目；规则命中、没有可用账号、没有命中规则的文案同样需要路由组和规则，沙盒里没有路由组。下面的场景只能展示这些说明会出现的位置。",
+  "interactive": true,
+  "pages": 1
+}

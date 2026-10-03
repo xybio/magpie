@@ -1,0 +1,14 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#703 界面预览 · 5c4a2bf</title>
+<style>:root{color-scheme:light dark;--bg:#f6f6f7;--fg:#1d1d1f;--muted:#6e6e73;--card:#fff;--line:#e5e5ea}
+@media (prefers-color-scheme:dark){:root{--bg:#111113;--fg:#f2f2f4;--muted:#9a9aa0;--card:#1c1c1f;--line:#2c2c30}}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"Segoe UI","PingFang SC","Noto Sans CJK SC",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:28px 16px 60px}h1{font-size:20px;margin:0 0 4px}.m{color:var(--muted);font-size:13px;margin:0 0 20px}
+video,img{display:block;width:100%;border-radius:10px;border:1px solid var(--line);background:var(--card)}figure{margin:0 0 28px}figcaption{color:var(--muted);font-size:13px;margin-top:8px}
+a{color:inherit}</style>
+<main><h1>#703 界面预览</h1><p class="m">commit 5c4a2bf · <a href="https://github.com/yetone/magpie/pull/703">回到 PR</a> · 改动集中在「路由」页的请求说明文案：带 sealedTask 的请求会说明子代理任务已加密、只有 ChatGPT 账号能读，并说明优先使用回答过主代理的账号；子代理请求改说由 magpie 在路由组内选模型；额度相关句不再一律称「每周」而改说「剩余额度 / 距重置」；命中规则却没有可用账号、以及没有命中规则的句子也改写得更短。后端只是把这些路由决定记进 trace，未改变路由策略。</p>
+<figure><video src="preview.mp4" controls autoplay muted playsinline poster="poster.png"></video><figcaption>红线是鼠标走过的轨迹，红色圆环是一次点击；底部文字是这一步在做什么。空格暂停，← → 逐段查看。</figcaption></figure>
+<figure><img src="01-routing-overview.png" alt="进入「路由」：沙盒只有 DeepSeek，最近的请求都来自 curl"><figcaption>路由页显示请求说明的位置 · 进入「路由」：沙盒只有 DeepSeek，最近的请求都来自 curl</figcaption></figure>
+<figure><img src="02-routing-request-list.png" alt="最近几个请求的列表"><figcaption>路由页显示请求说明的位置 · 最近几个请求的列表</figcaption></figure>
+<figure><img src="03-routing-request-steps.png" alt="这条请求的路由说明——加密子任务、主代理账号优先、子代理选模型这类条目都出现在这个列表里"><figcaption>路由页显示请求说明的位置 · 这条请求的路由说明——加密子任务、主代理账号优先、子代理选模型这类条目都出现在这个列表里</figcaption></figure>
+</main></html>
