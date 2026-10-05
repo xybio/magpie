@@ -257,7 +257,9 @@ as [ZedG](https://github.com/x6nux/zed-globalization). These variables affect
 the Magpie process in which they are set; put them in the service environment
 when running Magpie under systemd or Docker. They configure a Zed-compatible
 Agent on the same machine as Magpie; they do not discover or modify an Agent
-running on another host.
+running on another host. On macOS, if the configured binary does not resolve to
+a `.app` bundle, Magpie falls back to the standard Zed application locations
+when authorizing the gateway credential.
 
 ## Quick start
 

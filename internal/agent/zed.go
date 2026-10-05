@@ -26,7 +26,7 @@ func zed(home, cfg string) *Agent {
 		bin = "zed"
 	}
 	processes := zedProcessNames()
-	if custom := os.Getenv("MAGPIE_ZED_CONFIG_DIR"); custom != "" {
+	if custom := appdir.Getenv("MAGPIE_ZED_CONFIG_DIR"); custom != "" {
 		return zedAtWith(custom, bin, processes)
 	}
 	switch runtime.GOOS {
