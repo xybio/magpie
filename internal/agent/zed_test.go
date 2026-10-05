@@ -372,3 +372,25 @@ func TestZedCustomPaths(t *testing.T) {
 		t.Fatalf("custom config path: path=%q dir=%q", a.Path, a.Dir)
 	}
 }
+
+func TestZedDefaultsStayStable(t *testing.T) {
+	t.Setenv("MAGPIE_ZED_BIN", "")
+	t.Setenv("MAGPIE_ZED_CONFIG_DIR", "")
+	t.Setenv("MAGPIE_ZED_PROCESS_NAMES", "")
+	a := zed(t.TempDir(), filepath.Join(t.TempDir(), ".config"))
+	if a.Bin != "zed" {
+		t.Fatalf("default binary: %q", a.Bin)
+	}
+	want := `(^|/)(zed|zeditor|zed-editor)( |$)`
+	if got := zedProcessNames(); len(got) != 1 || got[0] != want {
+		t.Fatalf("default process names: %#v", got)
+	}
+}
+
+func TestZedCustomProcessNames(t *testing.T) {
+	t.Setenv("MAGPIE_ZED_PROCESS_NAMES", "zedg,ZedG")
+	want := []string{`(^|/)zedg( |$)`, `(^|/)ZedG( |$)`}
+	if got := zedProcessNames(); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("custom process names: %#v", got)
+	}
+}

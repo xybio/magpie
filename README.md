@@ -229,6 +229,12 @@ Claude Code · Claude Desktop · Codex · Gemini CLI · OpenCode · OpenChamber 
 
 magpie shows only the agents installed on your machine. Anything else that takes a base URL can use the gateway too:
 
+```sh
+export OPENAI_BASE_URL=http://127.0.0.1:3425/v1     OPENAI_API_KEY=magpie
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3425     ANTHROPIC_API_KEY=magpie
+export GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:3425 GEMINI_API_KEY=magpie
+```
+
 ### Zed-compatible Agent paths
 
 Magpie can use a Zed-compatible fork or installation whose executable or
@@ -252,12 +258,6 @@ the Magpie process in which they are set; put them in the service environment
 when running Magpie under systemd or Docker. They configure a Zed-compatible
 Agent on the same machine as Magpie; they do not discover or modify an Agent
 running on another host.
-
-```sh
-export OPENAI_BASE_URL=http://127.0.0.1:3425/v1     OPENAI_API_KEY=magpie
-export ANTHROPIC_BASE_URL=http://127.0.0.1:3425     ANTHROPIC_API_KEY=magpie
-export GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:3425 GEMINI_API_KEY=magpie
-```
 
 ## Quick start
 
