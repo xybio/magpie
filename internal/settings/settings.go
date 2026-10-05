@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -174,6 +175,11 @@ type Settings struct {
 	// (gateway.searcher). One that is gone, off or can't search gives way
 	// to magpie's pick.
 	Searcher string `json:"searcher,omitempty"`
+	// SearchFirst is what a model that can't search the web is searched
+	// for with first, when both a provider and a search API can (#928):
+	// SearchFirstAPI for the search APIs, the provider's search after them
+	// when they fail; empty for the provider first, as before.
+	SearchFirst string `json:"searchFirst,omitempty"`
 	// TrayUsages are the subscriptions and plans whose windows are shown
 	// beside the tray icon, in the order shown, each by its provider and
 	// account ("claude|a@b.c"); none when empty.
@@ -373,7 +379,8 @@ type ModelPrice struct {
 	CacheRead  *float64 `json:"cache_read,omitempty"`
 	CacheWrite *float64 `json:"cache_write,omitempty"`
 	// CacheWrite1h is a 1-hour cache write's price, absent where none is
-	// given: such a write is then counted at 2× input (catalog.Price).
+	// given: such a write is then counted at 2× input for a Claude model,
+	// else at the 5-minute price (catalog.OneHourFor).
 	CacheWrite1h *float64 `json:"cache_write_1h,omitempty"`
 	// Tiers are the prices of a request whose input is over a size, each
 	// whole: "magpie model price … --tier 272k …" (PAMI on Discord).
@@ -516,6 +523,25 @@ var (
 	// webviews' zoom on Windows and Linux (Wails' SetZoom) goes no lower.
 	TextSizes = []int{100, 110, 125, 150}
 )
+
+// SearchFirst's values: a provider's search first, saved as "", or the
+// search APIs first.
+const (
+	SearchFirstModel = "model"
+	SearchFirstAPI   = "api"
+)
+
+// DefaultTextSize is the text size of settings that have never had one
+// saved. Windows' and Linux's body text is 14px against magpie's 13px at
+// 100%, a size smaller than what is around it there, so they start at
+// 110% (#914); the Mac's is 13px, as magpie's. A size once saved, 100%
+// too, is kept as it is. A var so tests can be any system.
+var DefaultTextSize = func() int {
+	if runtime.GOOS == "windows" || runtime.GOOS == "linux" {
+		return 110
+	}
+	return 100
+}
 
 var validTerminalBundleID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,254}$`)
 
@@ -820,6 +846,12 @@ func Save(s Settings) error {
 		return fmt.Errorf("the model for Codex's titles must be a model's id such as openai/gpt-5-mini, or off, not %q", s.CodexTitles)
 	}
 	s.Searcher = strings.TrimSpace(s.Searcher)
+	if s.SearchFirst = strings.TrimSpace(s.SearchFirst); s.SearchFirst == SearchFirstModel {
+		s.SearchFirst = ""
+	}
+	if s.SearchFirst != "" && s.SearchFirst != SearchFirstAPI {
+		return fmt.Errorf("web search must go first to %q or %q, not %q", SearchFirstModel, SearchFirstAPI, s.SearchFirst)
+	}
 	s.ImageGen = strings.TrimSpace(s.ImageGen)
 	if s.ImageGen != "" && s.ImageGen != "off" && !strings.Contains(s.ImageGen, "/") {
 		return fmt.Errorf("the image generation model must be a model's id such as openai/gpt-image-1, or off, not %q", s.ImageGen)
@@ -911,7 +943,7 @@ func (s Settings) normal() Settings {
 		s.UpdateEvery = 360
 	}
 	if s.TextSize == 0 {
-		s.TextSize = 100
+		s.TextSize = DefaultTextSize()
 	}
 	// one card, as a magpie before TrayUsages kept it; an empty list
 	// sent on purpose (all of them turned off) stays empty

@@ -259,6 +259,12 @@ the agents are drawn again from the state, and opens the list again, where
 "Show all" puts them back; no click moves the page. Chromium and WebKit,
 English and Chinese.
 
+`agent-models-picker.test.cjs` takes two of Claude Code · WSL Ubuntu's
+three models out in its model list, then clicks its model picker, which
+closes the list and opens on the one left at once, while the state that
+follows is still on its way (#927). Chromium and WebKit, English and
+Chinese.
+
 `agent-models.test.cjs` opens Codex's model list from the line under its
 name, in Chromium and WebKit, English and Chinese: the line reads "Showing 8 /
 31 models" under the name, opening it moves nothing and puts it on the screen
@@ -566,8 +572,11 @@ leaves it be; Ctrl/Cmd + = and − step through the sizes and 0 goes back to
 The zoom is the webview's, so here it is as a browser zooms: the smallest
 window at 150% (840×630 points) is 560×420 CSS pixels at a device scale of
 1.5, and no view (nor the panel at 150%) runs off to the side, the Mac
-header still 50 points tall for the traffic lights. English and Chinese,
-light and dark; ARTIFACT_DIR gets screenshots at 100% and 150%.
+header still 50 points tall for the traffic lights. At 150% in a 1440×900
+window scrolled down, a click on 100% (the window then 1440×900 CSS pixels)
+leaves no `.view-room` and no blank under the page, nor scrolls it beyond
+the browser's own fit (#911). English and Chinese, light and dark;
+ARTIFACT_DIR gets screenshots at 100% and 150%.
 
 `settings-groups.test.cjs` puts the Settings page's warm-ups and check-in
 under a tab per service (#124): Codex, Claude Code and WorkBuddy tabs where a
@@ -672,8 +681,9 @@ login/forget once per account and the line goes; in English and Chinese.
 couldn't be removed while Codex was signed in to it): its row has Sign out,
 asked in the app's own dialog; Cancel and Escape post nothing and go back to
 the editor, Sign out posts login/forget and says so. With another account
-saved the one in use has no Sign out, and a signed_in refusal is said in the
-reader's language. No select, no left border, the page doesn't move; in
+saved the one in use has no Sign out but Remove, which posts login/forget
+(vincentzhang1_55530 on Discord: magpie signs Codex in to another account
+first), and a signed_in refusal is said in the reader's language. No select, no left border, the page doesn't move; in
 English and Chinese.
 
 `nokey-editor.test.cjs` opens two local Ollama providers saved with no key,
@@ -1566,6 +1576,13 @@ line, the 2 days / Cycle control turning every card without moving the page,
 no curve without readings, the theme's chart colours in light and dark, and
 the tray card's thin current-cycle line, in Chinese and English.
 
+`balance-curve.test.cjs` checks a key's balance over time on the Usage page:
+its readings as a line, the least-squares line since the last top-up dashed
+on to zero, "Runs out in 3d at this pace" and the spend a day, a click (or
+Enter) enlarging the plot and another taking it back without moving the
+page, no curve for a key of one reading, and the allowances' Off taking it
+away, in Chinese and English, light and dark.
+
 With Node.js and Playwright available, `make test-ui` manually runs the whole suite:
 every `internal/gui/tests/*.test.cjs`, discovered automatically. Files are
 independent and run a few at a time (`UI_TEST_CONCURRENCY`, default 2); set
@@ -1850,4 +1867,16 @@ string has zh, ja and de. English and Chinese, Chromium and WebKit.
 
 ```sh
 node --test internal/gui/tests/lane-limit.test.cjs
+```
+
+`ledger-protocol.test.cjs` checks the protocol each request was sent
+upstream in, on Usage › Requests (蓝猫 on Discord): a row translated from
+its agent's protocol is tagged "Chat → Anthropic", one sent as it came
+"Anthropic" or "Responses", one read from a session file nothing. A
+request's details say Protocol and the upstream's own stop reason, when it
+gave one. A click opens the details and moves nothing; no left border;
+every string has zh, ja and de. English and Chinese, Chromium and WebKit.
+
+```sh
+node --test internal/gui/tests/ledger-protocol.test.cjs
 ```

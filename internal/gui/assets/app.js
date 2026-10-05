@@ -2191,8 +2191,13 @@ function closeAgentModels() {
   document.removeEventListener("keydown", m.keys, true);
   document.removeEventListener("scroll", m.scrolled, true);
   removeEventListener("resize", closeAgentModels);
+  if (!m.changed) return;
+  // its pickers drop what was taken out at once, so the one opened next
+  // (the mousedown on it is what closed the list) has it gone (#927); what
+  // was put back comes with the state
+  if (m.hidden) for (const f of m.a.fields || []) f.options = f.options.filter((o) => !o.ref || !m.hidden.has(o.ref) || o.value === f.value);
   // the agents' pickers list what's left once the writes are in
-  if (m.changed) m.saving.then(async () => { state = await api("state"); renderAgents(); }).catch(() => {});
+  m.saving.then(async () => { state = await api("state"); renderAgents(); }).catch(() => {});
 }
 
 async function openAgentModels(a, anchor, ev) {
@@ -2251,6 +2256,8 @@ async function openAgentModels(a, anchor, ev) {
   const unorder = el("button", "am-reset", t("Default order"));
   unorder.type = "button";
   const footNote = el("span", "", t("New models are shown"));
+  // takes back a first click on Hide all or Show all (twice, below)
+  let disarm = () => {};
   foot.append(footNote, el("span", "sp"), hideAll, el("span", "am-dot", "·"), reset);
   // groups as the catalog has them, routing groups first; a long one
   // starts folded, unless the agent is set to a model in it
@@ -2310,6 +2317,7 @@ async function openAgentModels(a, anchor, ev) {
   const save = () => {
     me.changed = true;
     const hidden = models.filter((m) => m.hidden).map((m) => m.id);
+    me.hidden = new Set(hidden);
     // by whose they are, as the state counts them, for a connected row's chips
     const by = [];
     for (const m of models) {
@@ -2467,6 +2475,8 @@ async function openAgentModels(a, anchor, ev) {
     }
     if (!list.childNodes.length) list.append(el("div", "am-none", t("No matches.")));
     list.scrollTop = top;
+    // anything else done in the list takes back a first click there
+    disarm();
     reset.disabled = !models.some((m) => m.hidden);
     hideAll.disabled = !models.some((m) => !m.hidden && !m.inUse);
   };
@@ -2502,16 +2512,40 @@ async function openAgentModels(a, anchor, ev) {
     }
     draw();
   };
-  reset.onclick = () => {
+  // every model of every provider at once is a lot to pick again by hand,
+  // and with one provider picked on the left it read as that one's (#920):
+  // a first click says how many, of every provider, and a second does it
+  const twice = (b, armed, go) => {
+    b.onclick = () => {
+      if (!b.dataset.armed) {
+        disarm();
+        b.dataset.armed = "1";
+        b.textContent = armed();
+        footNote.hidden = true;
+        b._t = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      go();
+      save();
+      draw();
+    };
+  };
+  disarm = () => {
+    for (const [b, label] of [[hideAll, t("Hide all")], [reset, t("Show all")]]) {
+      clearTimeout(b._t);
+      if (!b.dataset.armed) continue;
+      delete b.dataset.armed;
+      b.textContent = label;
+    }
+    footNote.hidden = false;
+  };
+  twice(reset, () => t("Show {n} hidden, of every provider? Click again", { n: models.filter((m) => m.hidden).length }), () => {
     for (const m of models) m.hidden = false;
-    save();
-    draw();
-  };
-  hideAll.onclick = () => {
+  });
+  twice(hideAll, () => t("Hide {n}, of every provider? Click again", { n: models.filter((m) => !m.inUse && !m.hidden).length }), () => {
     for (const m of models) if (!m.inUse && !m.hidden) { m.hidden = true; kept.add(m.id); }
-    save();
-    draw();
-  };
+  });
   draw();
 
   document.body.append(box);
@@ -5453,7 +5487,11 @@ function modelInfo(m) {
   if (decideEntry(m)) lines.push(t("Decision model: routing groups ask it, agents never see it"));
   else if (levels.length) {
     box.append(el("span", "badge mi-effort", effortSpan(levels)));
-    lines.push(t("Reasoning: {levels}", { levels: levels.map((l) => t(l)).join(", ") }));
+    // a group's levels are not its own: they are the ones every model in it
+    // has, as its images are whichever member's and its window the largest's
+    lines.push(m.group
+      ? t("Reasoning: {levels} (the levels every model in it has)", { levels: levels.map((l) => t(l)).join(", ") })
+      : t("Reasoning: {levels}", { levels: levels.map((l) => t(l)).join(", ") }));
   } else lines.push(t("Reasoning levels: none known"));
   // nothing read of its images either way: magpie counts it text-only for a
   // describer (gateway.blindTo), which is not the same as its list saying so,
@@ -8615,7 +8653,9 @@ function renderModels(p) {
       // Usage page counts it (#819: only `magpie model price` set it):
       // each box shows its list price until a price is given, a part left
       // empty is the list's, and every part empty is its list price again
-      // the 1-hour cache write, empty, is 2× input as Anthropic bills it;
+      // the 1-hour cache write, empty, is 2× input as Anthropic bills it,
+      // and only a Claude model (or one priced with one) has the box: no
+      // other vendor has 1-hour writes (PAMI on Discord);
       // a long-context price (OpenAI's over 272K) is what the whole request
       // costs when its input is over its size, empty parts its list's
       const parts = [["input", "Input"], ["output", "Output"], ["cache_read", "Cache read"], ["cache_write", "Cache write"], ["cache_write_1h", "Cache write 1h"]];
@@ -8643,7 +8683,10 @@ function renderModels(p) {
         const value = typed ? typed[n] : !pr ? "" : k === "cache_write_1h" ? pr.cache_write_1h ? shown(pr.cache_write_1h) : "" : shown(pr[k]);
         const placeholder = !m.list ? "" : k === "cache_write_1h" ? shown(oneHour(m.list)) : shown(m.list[k]);
         const i = cell(value, placeholder, k, t(l));
-        if (k === "cache_write_1h") box.title = t("A cache write kept for an hour, as Anthropic bills it; empty: 2× input");
+        if (k === "cache_write_1h") {
+          box.title = t("A cache write kept for an hour, as Anthropic bills it; empty: 2× input");
+          box.hidden = !/claude/i.test(m.id) && !m.list?.cache_write_1h && !pr?.cache_write_1h && !(typed && typed[n]);
+        }
         box.append(el("span", "", t(l)), i);
         priceBox.append(box);
         return i;
@@ -10035,6 +10078,13 @@ function renderAccounts(a, p) {
         out.title = t("Signs Codex out of this account, as codex logout does");
         out.onclick = () => askSignOutLogin(a, l);
         row.append(out);
+      } else if (a.agent === "codex") {
+        // Codex is signed in to another of its accounts first, then this
+        // one goes (ForgetLogin), rather than Codex signed out
+        const forget = el("button", "text quiet", t("Remove"));
+        forget.title = t("Codex is signed in to another of its accounts, and magpie forgets this one; the account itself is untouched");
+        forget.onclick = () => accountAction("login/forget", { agent: a.agent, user: l.user }, t("{user} removed", { user: l.user }));
+        row.append(forget);
       }
     } else {
       const forget = el("button", "text quiet", t("Remove"));
@@ -10303,6 +10353,7 @@ function balanceFieldOf(raw) {
   if (path === "/api/user/self") return "$data.quota / 500000";
   if (path === "/api/usage/token") return "$data.total_available / 500000";
   if (path === "/api/v1/user/profile") return "$data.balance";
+  if (path === "/v1/usage") return "$remaining";
   if (path.endsWith("/dashboard/billing/credit_grants")) return "$total_available";
   return "data.balance";
 }
@@ -11880,6 +11931,9 @@ function renderQuotas() {
       if (!brief && sub.daily && !sub.error) card.append(creditDays(sub));
       // what is left besides the windows, under them
       if (sub.balance && sub.windows?.length && !sub.error) card.append(balanceRow(sub, "What is left on the account besides its windows", false));
+      // the balance over time, and when it runs out at that pace
+      const spend = !brief && !sub.error && balanceCurve(sub);
+      if (spend) card.append(spend);
       // when the windows were read: "Updated 3 min ago", or the time of
       // ones standing in for a reading that failed just now (#802; a
       // balance alone says it in its row)
@@ -12109,7 +12163,7 @@ addEventListener("storage", (e) => {
 function renderQuotaTrend() {
   const b = $("#quotaTrend");
   if (!b) return;
-  b.hidden = !quotas?.some((q) => !q.error && quotaLines(q).length);
+  b.hidden = !quotas?.some((q) => !q.error && (quotaLines(q).length || q.balanceTrend?.points?.length > 1));
   if (b.hidden) return;
   const cur = QUOTA_RANGES.find(([id]) => id === quotaRange);
   b.classList.toggle("set", quotaRange !== "off");
@@ -12238,6 +12292,7 @@ function quotaCurve(sub) {
   box.title = t("Solid: what was left. Dashed: an even pace, full at the cycle's start to empty at its reset; a line above its dashes lasts the cycle, one below runs out before the reset.");
   const W = 300, H = 60;
   const g = sv("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", class: "qc-plot", role: "img" });
+  curveZoom(box, g);
   const axis = el("div", "qc-axis");
   const legend = el("div", "qc-legend");
   lines.forEach((l, i) => {
@@ -12270,6 +12325,88 @@ function quotaCurve(sub) {
 function quotaReadings(l, now) {
   const pts = l.points.slice(-8);
   return pts.map((p, i) => (i > 0 && quotaCycleBreak(pts[i - 1], p) ? "↻ " : "") + Math.round(p.left) + "% · " + quotaTimeText(p.at, now)).reverse();
+}
+// curveZoom: a curve made larger on a click, or Enter, and back on the
+// next (TJHHHH on Discord); the page stays where it is
+function curveZoom(box, g) {
+  g.setAttribute("tabindex", "0");
+  g.setAttribute("aria-expanded", "false");
+  const flip = (e) => {
+    e.stopPropagation();
+    const big = box.classList.toggle("big");
+    g.setAttribute("aria-expanded", String(big));
+  };
+  g.addEventListener("click", flip);
+  g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(e); } });
+}
+// balanceAmount: v written as the card's balance writes its amount, "¥"
+// or "$" before it, "credits" after
+function balanceAmount(sub, v) {
+  const m = (sub.balance || "").match(/^(.*?)-?\d[\d,]*(?:\.\d+)?(.*)$/);
+  const n = v.toLocaleString(intlLang(), { minimumFractionDigits: Math.abs(v) < 100 ? 2 : 0, maximumFractionDigits: 2 });
+  return m ? m[1] + n + m[2] : n;
+}
+// balanceCurve: a key's balance over time, as magpie read it, under its
+// figure on the Usage page (TJHHHH on Discord): the line, the least-squares
+// line through it since the last top-up dashed on to where it meets zero
+// when that is near, and when it runs out at that pace in the head. The
+// range the allowances' curves have ("2 days", or all it has: two weeks);
+// none while they are off, or with one reading only.
+function balanceCurve(sub) {
+  if (quotaRange === "off") return null;
+  const tr = sub.balanceTrend;
+  if (!tr?.points?.length || tr.points.length < 2) return null;
+  const pts = tr.points.map((p) => ({ at: Date.parse(p.at), v: p.amount }));
+  const box = el("div", "quota-curve balance-curve");
+  const head = el("div", "qc-head");
+  const out = tr.runsOut ? Date.parse(tr.runsOut) : null;
+  const pace = el("span", "qc-range");
+  head.append(el("span", "", t("Balance over time")), pace);
+  box.title = t("Solid: the balance as magpie read it. Dashed: a straight line fitted through it since the last top-up, carried on to where it runs out. Click to enlarge.");
+  const W = 300, H = 60;
+  const g = sv("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", class: "qc-plot", role: "img" });
+  curveZoom(box, g);
+  const axis = el("div", "qc-axis");
+  const legend = el("div", "qc-legend");
+  const k = el("span", "qc-key");
+  const sw = el("i");
+  sw.style.background = "var(--c1)";
+  const last = pts[pts.length - 1];
+  k.append(sw, el("span", "", t("Balance")), el("b", "", balanceAmount(sub, last.v)));
+  k.title = [t("Latest readings:"), ...pts.slice(-8).reverse().map((p) => balanceAmount(sub, p.v) + " · " + quotaTimeText(p.at, Date.now()))].join("\n");
+  legend.append(k);
+  if (tr.perDay > 0) legend.append(el("span", "qc-key bc-pace", t("about {amount} a day", { amount: balanceAmount(sub, tr.perDay) })));
+  box.draw = () => {
+    const now = Date.now();
+    let x0 = quotaRange === "2d" ? now - 48 * 3600e3 : pts[0].at, x1 = now;
+    if (!(x0 < now)) x0 = now - 3600e3;
+    // the dashes reach zero when it is no further off than what is shown
+    if (out && out > now && out - now <= now - x0) x1 = out;
+    const top = Math.max(...pts.filter((p) => p.at >= x0).map((p) => p.v), last.v, tr.fitStart || 0) * 1.08 || 1;
+    const X = (at) => ((at - x0) / (x1 - x0)) * W, Y = (v) => H - (Math.max(0, Math.min(top, v)) / top) * H;
+    g.replaceChildren();
+    for (const f of [0, 0.5, 1]) g.append(sv("line", { x1: 0, x2: W, y1: H - f * H, y2: H - f * H, class: "qc-grid" }));
+    if (tr.fitFrom) {
+      const from = Date.parse(tr.fitFrom), slope = (tr.fitNow - tr.fitStart) / (now - from || 1);
+      const end = out && x1 === out ? out : now;
+      g.append(sv("line", { x1: X(from), y1: Y(tr.fitStart), x2: X(end), y2: Y(tr.fitStart + slope * (end - from)), class: "qc-even bc-fit" }, { stroke: "var(--c1)" }));
+    }
+    let d = "";
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], next = pts[i + 1];
+      if (p.at < x0 && next && next.at < x0) continue;
+      d += (d ? "L" : "M") + X(p.at).toFixed(1) + " " + Y(p.v).toFixed(1);
+    }
+    if (d) g.append(sv("path", { d, class: "qc-line" }, { stroke: "var(--c1)" }));
+    if (x1 > now) g.append(sv("line", { x1: X(now), x2: X(now), y1: 0, y2: H, class: "qc-now" }));
+    pace.textContent = out ? t("Runs out {in} at this pace", { in: untilText(Math.max(out, now + 60e3)) }) : "";
+    pace.title = out ? new Date(out).toLocaleString() : "";
+    g.setAttribute("aria-label", t("Balance over time") + (out ? " · " + pace.textContent : ""));
+    axis.replaceChildren(el("span", "", quotaTimeText(x0, now)), el("span", "", quotaTimeText(x1, now)));
+  };
+  box.append(head, g, axis, legend);
+  box.draw();
+  return box;
 }
 function setQuotaRange(id) {
   if (id === quotaRange) return;
@@ -13493,7 +13630,11 @@ function renderUsage() {
       share.title = t("{n}% of tokens", { n: Math.round(100 * tokensOf(g) / total) });
       r.append(share);
       const num = el("div", "num");
-      num.append(el("b", "", fmtN(tokensOf(g))), el("small", "", t("{a} in · {b} out", { a: fmtN(g.input), b: fmtN(g.output) }) + (g.cache_read ? " · " + t("{n} cached", { n: fmtN(g.cache_read) }) : "")));
+      // how much of its prompt came from the cache, counted as the cache
+      // read tile counts it (#925)
+      const prompt = g.input + g.cache_read + (g.cache_write || 0);
+      const hit = g.cache_read && prompt ? " · " + t("hit rate {p}", { p: Math.round(100 * g.cache_read / prompt) + "%" }) : "";
+      num.append(el("b", "", fmtN(tokensOf(g))), el("small", "", t("{a} in · {b} out", { a: fmtN(g.input), b: fmtN(g.output) }) + (g.cache_read ? " · " + t("{n} cached", { n: fmtN(g.cache_read) }) : "") + hit));
       r.append(num);
       r.append(el("div", "cost", fmtCost(g) ? "≈" + fmtCost(g) : ""));
       box.append(r);
@@ -13622,6 +13763,28 @@ function ledServed(r) {
   return k;
 }
 
+// the protocol a request was sent upstream in, told by the path it went
+// out on, and the one its agent spoke when that was another: the
+// endpoint reads "/v1/chat/completions → /v1/messages" for a request
+// translated, the agent's own path alone for one sent as it came (蓝猫 on
+// Discord). null for a request with no path kept, a session file's.
+const ledProtoOf = (path) => /\/messages\b/.test(path) ? "Anthropic" : /\/responses\b/.test(path) ? "Responses"
+  : /\/chat\/completions\b/.test(path) ? "Chat" : /generateContent|\/generate\b/.test(path) ? "Gemini" : "";
+function ledProtos(r) {
+  if (!r.ep || r.source === "log") return null;
+  const [a, b] = String(r.ep).split(" → ");
+  const from = ledProtoOf(a), to = b ? ledProtoOf(b) : from;
+  if (!to) return null;
+  return { from: from || to, to };
+}
+function ledProtoBadge(r) {
+  const p = ledProtos(r);
+  if (!p) return null;
+  const k = el("span", "src proto proto-" + p.to.toLowerCase(), p.from !== p.to ? p.from + " → " + p.to : p.to);
+  k.title = p.from !== p.to ? t("The agent spoke {from}; sent upstream as {to}", p) : t("Sent upstream as {to}, as the agent spoke it", p);
+  return k;
+}
+
 // a request that failed: told by its status, or, for one read from a
 // session file, which records none, by the error that ended it
 const ledFailed_ = (r) => r.status >= 400 || !!r.err;
@@ -13669,6 +13832,11 @@ function ledDetail(r, cols) {
   if (ledRowSpeed(r)) add("Speed", t("{n} tok/s", { n: ledNum(Math.round(ledRowSpeed(r))) }));
   add("Request ID", r.rid);
   add("Endpoint", r.ep);
+  const protos = ledProtos(r);
+  if (protos) add("Protocol", protos.from !== protos.to ? protos.from + " → " + protos.to : protos.to);
+  // why the upstream said its reply ended, in its own words: a reply that
+  // ended too soon is told apart by it (蓝猫 on Discord)
+  add("Upstream stop reason", r.stop);
   // the provider an aggregator (OpenRouter …) said answered behind it
   add("Upstream provider", r.upstream);
   add("Session ID", r.session);
@@ -14424,6 +14592,8 @@ function renderLedger() {
       badge.title = t(access);
       badges.append(badge);
     }
+    const proto = ledProtoBadge(r);
+    if (proto) badges.append(proto);
     if (local && r.session_account) {
       const k = el("span", "src local", t("Local session"));
       k.title = t("Read from the agent's session file. The account is shown only when local metadata identifies it; no service provider is inferred.");
@@ -15870,9 +16040,18 @@ function applyZoom(n) {
   document.documentElement.style.setProperty("--zoom", web ? 1 : (n || 100) / 100);
 }
 let textSize = window.bootPrefs?.textSize || 100;
+// A new text size lays every page out anew: what was clicked (the size's
+// own button) isn't held where it was, nor any room kept for it, or the
+// page zoomed out at its foot was given a blank as tall as it shrank
+// (#911). Nothing is scrolled; the browser fits the page as it is.
+function newTextSize() {
+  held = null;
+  for (const v of document.querySelectorAll(".view")) setRoom(v, 0);
+}
 async function setTextSize(n) {
   if (web || n === textSize) return;
   textSize = n;
+  newTextSize();
   applyZoom(n);
   try {
     prefs = await writingPrefs(api("settings/text-size", { size: n }));
@@ -15954,7 +16133,7 @@ function applyPrefs(s, rate) {
     if (applyPrefs.painted) { renderCosts(); if (mode === "panel" && panelTab === "stats") renderPanelUse(); }
   }
   applyPrefs.painted = true;
-  if (!prefsBusy && (s.textSize || 100) !== textSize) { textSize = s.textSize || 100; applyZoom(textSize); }
+  if (!prefsBusy && (s.textSize || 100) !== textSize) { textSize = s.textSize || 100; newTextSize(); applyZoom(textSize); }
   const was = locale;
   setLocale(s.lang);
   if (was !== locale && mode === "window") queueMicrotask(() => slide($("#nav"), "nav"));
@@ -17235,8 +17414,10 @@ function renderSearch(s, keep) {
     i.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") add.onclick(); };
   }
   draw();
-  const by = s.searchProvider ? t("Now done by {who}; these come after it", { who: s.searchProvider })
-    : t("No provider can search, so these are asked");
+  const apiFirst = s.searchFirst === "api" && (s.searchAPIs || []).length > 0;
+  const by = !s.searchProvider ? t("No provider can search, so these are asked")
+    : apiFirst ? t("Asked before {who}, which searches when these fail", { who: s.searchProvider })
+    : t("Now done by {who}; these come after it", { who: s.searchProvider });
   const head = row(t("Search APIs"), d.err || t("When a model can't search the web, magpie searches for it with these, in this order, and gives it what they found") + " · " + by,
     pick, key, url, get, add);
   head.classList.add("rule-row", "search-add");
@@ -17272,6 +17453,14 @@ function renderSearch(s, keep) {
     const r = row(`${n + 1}. ${a.name}`, what, ...tools);
     r.classList.add("search-api");
   });
+  // which goes first when both a provider and a search API can search
+  // (#928); with only one of them there is nothing to choose
+  if (s.searchProvider && (s.searchAPIs || []).length) {
+    const r = row(t("Search first with"), t("The other is asked when it fails"),
+      segs([["model", t("Model search")], ["api", t("Search APIs")]], apiFirst ? "api" : "model",
+        (v) => savePrefs({ ...keep, searchFirst: v === "api" ? "api" : "" })));
+    r.id = "searchFirstRow";
+  }
 }
 
 // renderSearcher: the provider that searches the web for a model that
@@ -17845,7 +18034,7 @@ function prefsKeep(s) {
     claudeWarmup: s.claudeWarmup || "", codexWarmAt: s.codexWarmAt || "", claudeWarmAt: s.claudeWarmAt || "", workbuddyCheckin: !!s.workbuddyCheckin, traeCheckin: !!s.traeCheckin, minimaxCheckin: !!s.minimaxCheckin, noStats: !!s.noStats,
     memberModel: !!s.memberModel,
     noUpdatePill: !!s.noUpdatePill, noAutoUpdate: !!s.noAutoUpdate, updateEvery: s.updateEvery || 360,
-    trayUsage: s.trayUsage || "", trayUsageEvery: s.trayUsageEvery || 3, trayNoLogos: !!s.trayNoLogos, trayNoBird: !!s.trayNoBird, vision: s.vision || "", imageGen: s.imageGen || "", searcher: s.searcher || "", currency: s.currency || "usd",
+    trayUsage: s.trayUsage || "", trayUsageEvery: s.trayUsageEvery || 3, trayNoLogos: !!s.trayNoLogos, trayNoBird: !!s.trayNoBird, vision: s.vision || "", imageGen: s.imageGen || "", searcher: s.searcher || "", searchFirst: s.searchFirst || "", currency: s.currency || "usd",
     chineseUnits: !!s.chineseUnits, usageAlert: s.usageAlert || 0, balanceAlert: s.balanceAlert || 0, resetReminder: s.resetReminder || 0 };
 }
 

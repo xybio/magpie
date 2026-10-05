@@ -93,7 +93,7 @@ line; agents connected to magpie lose it when it quits.
 | JetBrains Air | `acp.json` in `~/Library/Application Support/JetBrains/Air` (`~/.config/JetBrains/Air` on Linux, `%APPDATA%\JetBrains\Air` on Windows) + `magpie-opencode.json` beside it | model (a `Magpie` ACP agent: OpenCode's `opencode acp` on magpie's provider alone, its models and routing groups in Air's model menu; needs OpenCode installed) |
 | Copilot CLI  | `~/.copilot/settings.json`        | model           |
 | Crush        | `~/.config/crush/crush.json`      | large, small    |
-| DeepSeek Harness (dsh) | `~/.dsh/profiles/*/cordis.patch.yml` (`$DSH_HOME`; a custom provider, Magpie), or `~/.dsh/config.yaml` before dsh 0.1.5 | model, effort |
+| DeepSeek Harness (dsh) | `~/.dsh/profiles/*/cordis.patch.yml` (`$DSH_HOME`; a custom provider, Magpie, its key `MAGPIE_GATEWAY_KEY` in `~/.dsh/.env`; on one of magpie's models its `web-search-deepseek` row also goes to the gateway, which searches with the model or Settings › Web search, unless dsh has a `DEEPSEEK_API_KEY` or a row of your own), or `~/.dsh/config.yaml` before dsh 0.1.5 | model, effort |
 | Command Code | `~/.commandcode/settings.json` (+ `providers.json`) | model |
 | fx           | `~/.fx/settings.json`             | model (a keyless `magpie` provider) |
 | omp (oh-my-pi) | `~/.omp/agent/config.yml` (+ `models.yml`) | model |
@@ -456,8 +456,10 @@ write kept for 5 minutes at 1.25× input and one kept for an hour at 2× input,
 and its usage says which were which (`cache_creation.ephemeral_5m_input_tokens`
 / `ephemeral_1h_input_tokens`, from the API and from Claude Code's
 transcripts). The fourth number is the 5-minute price; the fifth, when not
-given, is 2× input — Anthropic's rule, and only Anthropic reports 1-hour
-writes, so for any other model it never comes into play. A call recorded
+given, is 2× input for a Claude model — Anthropic's rule. Any other model has
+no 1-hour price unless you give one: a 1-hour write it reports is counted at
+the 5-minute price, and neither `magpie model price` nor the app's boxes show
+a 1-hour price for it. A call recorded
 before magpie kept the split counts all its writes at the 5-minute price, as
 it did.
 
@@ -707,6 +709,9 @@ with the app; `magpie serve` runs it alone. For reverse-proxied or container
 deployments, set `MAGPIE_PUBLIC_URL=https://magpie.example.com` to the base
 URL shown in the console and CLI, including connection examples. Local
 agent configs still use the local gateway address.
+
+Building an app or agent that should use magpie, or get a row on the
+Agents page: see [Integrating your app or agent](integrating.md).
 
 A reverse proxy must enforce authentication itself, or you must enable
 Settings → Share on local network and use an enabled gateway key
