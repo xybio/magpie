@@ -30,6 +30,7 @@ package agentenv
 var Vars = []string{
 	// Claude Code, Codex and Copilot CLI
 	"CLAUDE_CONFIG_DIR", "CODEX_HOME", "COPILOT_HOME",
+	"MAGPIE_ZED_BIN", "MAGPIE_ZED_CONFIG_DIR", "MAGPIE_ZED_PROCESS_NAMES",
 	// Codex's state database, when it is kept apart from CODEX_HOME
 	"CODEX_SQLITE_HOME",
 	// Gemini CLI's session/config home

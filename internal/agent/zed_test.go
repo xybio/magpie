@@ -356,3 +356,19 @@ func TestZedXDGPath(t *testing.T) {
 		t.Fatalf("XDG: %s", a.Path)
 	}
 }
+
+func TestZedCustomPaths(t *testing.T) {
+	home := t.TempDir()
+	config := filepath.Join(home, "zedg-config")
+	t.Setenv("MAGPIE_ZED_BIN", "/opt/zedg/bin/zedg")
+	t.Setenv("MAGPIE_ZED_CONFIG_DIR", config)
+	t.Setenv("MAGPIE_ZED_PROCESS_NAMES", "zedg,ZedG")
+	a := zed(home, filepath.Join(home, ".config"))
+	want := filepath.Join(config, "settings.json")
+	if a.Bin != "/opt/zedg/bin/zedg" {
+		t.Fatalf("custom binary: %q", a.Bin)
+	}
+	if a.Path != want || a.Dir != filepath.Dir(want) {
+		t.Fatalf("custom config path: path=%q dir=%q", a.Path, a.Dir)
+	}
+}
